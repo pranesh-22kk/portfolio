@@ -16,11 +16,13 @@ import AboutSection3D from "./Components/AboutSection3D";
 import AchievementsSection from "./Components/AchievementsSection";
 import Hero3D from "./Components/Hero3D";
 import ThreeBackground from "./Components/ThreeBackground";
+import Enhanced3DBackground from "./Components/Enhanced3DBackground";
 import projects from "./constants/projects";
 import ContactMe from "./Components/ContactMe";
 import ContactMe3D from "./Components/ContactMe3D";
 import Footer from "./Components/Footer";
 import ErrorBoundary from "./Components/ErrorBoundary";
+import { throttle, detectPerformanceCapability } from "./utils/performance";
 
 // Optimized loading component
 function LoadingSpinner() {
@@ -39,96 +41,44 @@ const Portfolio = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(true); // default dark mode enabled
   const [lowPerformanceMode, setLowPerformanceMode] = useState(false);
+  const [performanceCapability, setPerformanceCapability] = useState(1);
 
-  // Performance detection
+  // Enhanced performance detection
   useEffect(() => {
-    const detectPerformance = () => {
-      const canvas = document.createElement('canvas');
-      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-      
-      if (!gl) {
-        setLowPerformanceMode(true);
-        return;
-      }
-
-      // Check for low-end devices
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const hasLowMemory = navigator.deviceMemory && navigator.deviceMemory < 4;
-      const hasSlowConnection = navigator.connection && (navigator.connection.effectiveType === 'slow-2g' || navigator.connection.effectiveType === '2g');
-      
-      if (isMobile || hasLowMemory || hasSlowConnection) {
-        setLowPerformanceMode(true);
-      }
-    };
-
-    detectPerformance();
+    const capability = detectPerformanceCapability();
+    setPerformanceCapability(capability);
+    setLowPerformanceMode(capability < 0.5);
   }, []);
 
-  useEffect(() => {
-    let ticking = false;
-    
-    const handleScroll = () => {
-      if (!ticking) {
-        requestAnimationFrame(() => {
-          const sections = ["home", "about", "skills", "education", "achievements", "work", "contact"];
-          const scrollPosition = window.scrollY + 100;
+  // Optimized scroll handler with throttling
+  const handleScroll = throttle(() => {
+    const sections = ["home", "about", "skills", "projects", "education", "achievements", "contact"];
+    const scrollPosition = window.scrollY + window.innerHeight / 2;
 
-          for (let i = sections.length - 1; i >= 0; i--) {
-            const element = document.getElementById(sections[i]);
-            if (element && scrollPosition >= element.offsetTop) {
-              setActiveSection(sections[i]);
-              break;
-            }
-          }
-          ticking = false;
-        });
-        ticking = true;
+    for (let i = sections.length - 1; i >= 0; i--) {
+      const element = document.getElementById(sections[i]);
+      if (element && element.offsetTop <= scrollPosition) {
+        setActiveSection(sections[i]);
+        break;
       }
-    };
+    }
+  }, 100);
 
-    // Use passive listener for better performance
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  useEffect(() => {
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  useEffect(() => {
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [handleScroll]);
 
   const scrollToSection = (sectionId) => {
     const element = document.getElementById(sectionId);
     if (element) {
-      // Enhanced smooth scrolling with offset for navbar
-      const navbarHeight = 64; // Adjust based on navbar height
-      const elementTop = element.offsetTop - navbarHeight;
-      
-      window.scrollTo({
-        top: elementTop,
-        behavior: "smooth"
+      element.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'start'
       });
-      
-      // For even smoother scrolling on mobile
-      if (window.innerWidth < 768) {
-        // Use requestAnimationFrame for smoother mobile scrolling
-        let start = null;
-        const startPos = window.pageYOffset;
-        const distance = elementTop - startPos;
-        const duration = 800; // Slightly longer duration for mobile
-        
-        const step = (timestamp) => {
-          if (!start) start = timestamp;
-          const progress = Math.min((timestamp - start) / duration, 1);
-          
-          // Ease-in-out cubic function for smooth animation
-          const easeInOutCubic = progress < 0.5 
-            ? 4 * progress * progress * progress 
-            : (progress - 1) * (2 * progress - 2) * (2 * progress - 2) + 1;
-          
-          window.scrollTo(0, startPos + distance * easeInOutCubic);
-          
-          if (progress < 1) {
-            window.requestAnimationFrame(step);
-          }
-        };
-        
-        window.requestAnimationFrame(step);
-      }
     }
     setIsMenuOpen(false);
   };
@@ -147,8 +97,7 @@ const Portfolio = () => {
         backgroundPosition: "0 0, 25px 25px",
         backgroundSize: "50px 50px",
       }}
-      className={`body-wrap m-0 w-full min-h-screen font-sans text-body transition-all duration-500 leading-6 text-base box-border flex flex-col overflow-x-hidden ${darkMode ? "bg-[#03050e] text-gray-300" : "text-black bg-gray-100"
-        }`}
+      className={`body-wrap m-0 sm:min-h-screen min-h-screen font-sans text-body transition-all duration-500 leading-6 text-base box-border -webkit-font-smoothing:antialiased flex flex-col bg-fixed ${darkMode ? "bg-[#03050e] text-gray-300" : "text-black bg-gray-100"}`}
     >
       {/* Performance Mode Indicator */}
       {lowPerformanceMode && (
@@ -157,11 +106,14 @@ const Portfolio = () => {
         </div>
       )}
 
-      {/* Conditional 3D Background based on performance */}
+      {/* Enhanced 3D Background based on performance */}
       {!lowPerformanceMode && (
         <ErrorBoundary>
           <Suspense fallback={null}>
-            <ThreeBackground darkMode={darkMode} />
+            <Enhanced3DBackground 
+              darkMode={darkMode} 
+              intensity={performanceCapability}
+            />
           </Suspense>
         </ErrorBoundary>
       )}
@@ -311,7 +263,7 @@ const Portfolio = () => {
       )}
 
       {/* Footer */}
-<Footer darkMode={darkMode} scrollToSection={scrollToSection}/>
+      <Footer darkMode={darkMode} scrollToSection={scrollToSection}/>
     </div>
   );
 };
