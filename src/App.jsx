@@ -22,13 +22,44 @@ import ContactMe3D from "./Components/ContactMe3D";
 import Footer from "./Components/Footer";
 import ErrorBoundary from "./Components/ErrorBoundary";
 
-// Optimized loading component
+// Mobile-friendly loading component
 function LoadingSpinner() {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-900">
-      <div className="flex flex-col items-center space-y-4">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-green-500"></div>
-        <p className="text-green-400 text-lg">Loading 3D Portfolio...</p>
+    <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
+      <div className="flex flex-col items-center space-y-4 px-4">
+        <div className="animate-spin rounded-full h-12 w-12 sm:h-16 sm:w-16 border-b-2 border-blue-500"></div>
+        <p className="text-blue-400 text-base sm:text-lg text-center">Loading Portfolio...</p>
+        <p className="text-gray-400 text-sm text-center">Optimizing for your device</p>
+      </div>
+    </div>
+  );
+}
+
+// Fallback component for mobile devices
+function MobileFallback({ darkMode, error }) {
+  return (
+    <div className={`min-h-screen flex items-center justify-center px-4 ${
+      darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'
+    }`}>
+      <div className="text-center max-w-md mx-auto">
+        <div className="mb-6">
+          <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center ${
+            darkMode ? 'bg-blue-600' : 'bg-blue-500'
+          } text-white text-2xl font-bold`}>
+            P
+          </div>
+        </div>
+        <h1 className="text-2xl font-bold mb-2">Pranesh Portfolio</h1>
+        <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+          {error ? 'Loading issue detected. ' : ''}
+          Please switch to desktop for the full 3D experience.
+        </p>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors"
+        >
+          Reload Page
+        </button>
       </div>
     </div>
   );
@@ -39,24 +70,68 @@ const Portfolio = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(true); // default dark mode enabled
   const [lowPerformanceMode, setLowPerformanceMode] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Performance detection
+  // Error boundary handler
+  useEffect(() => {
+    const handleError = (error) => {
+      console.error('Portfolio Error:', error);
+      setHasError(true);
+      setLowPerformanceMode(true);
+    };
+
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleError);
+
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleError);
+    };
+  }, []);
+
+  // Loading timer
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Performance detection with mobile-first approach
   useEffect(() => {
     const detectPerformance = () => {
-      const canvas = document.createElement('canvas');
-      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      // Aggressive mobile detection
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                       window.innerWidth < 768 ||
+                       window.screen.width < 768 ||
+                       ('ontouchstart' in window);
       
-      if (!gl) {
+      // Force low performance mode on mobile to prevent white screen
+      if (isMobile) {
+        console.log('Mobile device detected - enabling low performance mode');
         setLowPerformanceMode(true);
         return;
       }
 
-      // Check for low-end devices
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const hasLowMemory = navigator.deviceMemory && navigator.deviceMemory < 4;
-      const hasSlowConnection = navigator.connection && (navigator.connection.effectiveType === 'slow-2g' || navigator.connection.effectiveType === '2g');
+      // Desktop WebGL check
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
       
-      if (isMobile || hasLowMemory || hasSlowConnection) {
+      if (!gl) {
+        console.log('WebGL not supported - enabling low performance mode');
+        setLowPerformanceMode(true);
+        return;
+      }
+
+      // Additional performance checks for desktop
+      const hasLowMemory = navigator.deviceMemory && navigator.deviceMemory < 4;
+      const hasSlowConnection = navigator.connection && 
+        (navigator.connection.effectiveType === 'slow-2g' || navigator.connection.effectiveType === '2g');
+      
+      if (hasLowMemory || hasSlowConnection) {
+        console.log('Low performance detected - enabling low performance mode');
         setLowPerformanceMode(true);
       }
     };
@@ -133,6 +208,19 @@ const Portfolio = () => {
     setIsMenuOpen(false);
   };
 
+  // Early loading state
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  // Mobile fallback for devices with issues
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                   window.innerWidth < 768;
+                   
+  if (isMobile && (hasError || lowPerformanceMode)) {
+    return <MobileFallback darkMode={darkMode} error={hasError} />;
+  }
+
   return (
     <div
       style={{
@@ -159,31 +247,61 @@ const Portfolio = () => {
 
       {/* Conditional 3D Background based on performance */}
       {!lowPerformanceMode && (
-        <ErrorBoundary>
+        <ErrorBoundary fallback={null}>
           <Suspense fallback={null}>
             <ThreeBackground darkMode={darkMode} />
           </Suspense>
         </ErrorBoundary>
       )}
 
-      <NavBar3D
-        activeSection={activeSection}
-        scrollToSection={scrollToSection}
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-        darkMode={darkMode}
-        setDarkMode={setDarkMode}
-      />
+      <ErrorBoundary fallback={
+        <nav className={`fixed top-0 left-0 right-0 z-50 ${
+          darkMode ? 'bg-gray-900' : 'bg-white'
+        } border-b border-gray-200 h-16 flex items-center justify-center`}>
+          <div className="text-lg font-bold">Pranesh Portfolio</div>
+        </nav>
+      }>
+        <NavBar3D
+          activeSection={activeSection}
+          scrollToSection={scrollToSection}
+          isMenuOpen={isMenuOpen}
+          setIsMenuOpen={setIsMenuOpen}
+          darkMode={darkMode}
+          setDarkMode={setDarkMode}
+        />
+      </ErrorBoundary>
 
       {/* Conditional Enhanced 3D Hero Section */}
       {!lowPerformanceMode ? (
-        <ErrorBoundary>
+        <ErrorBoundary fallback={
+          <div className={`min-h-screen flex items-center justify-center ${
+            darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'
+          }`}>
+            <div className="text-center">
+              <h1 className="text-4xl font-bold mb-4">PRANESH</h1>
+              <h2 className="text-xl mb-4">Full Stack Developer</h2>
+              <p className="text-gray-500">Creating digital experiences</p>
+            </div>
+          </div>
+        }>
           <Suspense fallback={<LoadingSpinner />}>
             <Hero3D darkMode={darkMode} scrollToSection={scrollToSection} />
           </Suspense>
         </ErrorBoundary>
       ) : (
-        <AnimatedHeroSection darkMode={darkMode} scrollToSection={scrollToSection} />
+        <ErrorBoundary fallback={
+          <div className={`min-h-screen flex items-center justify-center ${
+            darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'
+          }`}>
+            <div className="text-center">
+              <h1 className="text-4xl font-bold mb-4">PRANESH</h1>
+              <h2 className="text-xl mb-4">Full Stack Developer</h2>
+              <p className="text-gray-500">Mobile-optimized version</p>
+            </div>
+          </div>
+        }>
+          <AnimatedHeroSection darkMode={darkMode} scrollToSection={scrollToSection} />
+        </ErrorBoundary>
       )}
 
       {/* Conditional Enhanced 3D About Section */}
